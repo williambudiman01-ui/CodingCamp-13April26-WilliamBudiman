@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expense &amp; Budget Visualizer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+/* ===== CSS Variables ===== */
+:root {
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface-alt: #f8f9fa;
+  --text: #1a1a2e;
+  --text-muted: #6c757d;
+  --primary: #4361ee;
+  --primary-hover: #3a56d4;
+  --danger: #e63946;
+  --danger-hover: #c1121f;
+  --border: #dee2e6;
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --radius: 12px;
+  --transition: 0.25s ease;
+}
+[data-theme="dark"] {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --surface-alt: #16213e;
+  --text: #e0e0e0;
+  --text-muted: #9a9ab0;
+  --primary: #4cc9f0;
+  --primary-hover: #3ab8de;
+  --danger: #e63946;
+  --danger-hover: #c1121f;
+  --border: #2d2d4e;
+  --shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background-color:var(--bg);color:var(--text);transition:background-color var(--transition),color var(--transition);min-height:100vh}
+.app-header{background-color:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow);position:sticky;top:0;z-index:100}
+.app-header h1{font-size:1.2rem;font-weight:700;color:var(--primary)}
+.theme-btn{background:var(--surface-alt);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:20px;cursor:pointer;font-size:0.85rem;transition:background var(--transition),color var(--transition)}
+.theme-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.container{max-width:900px;margin:0 auto;padding:24px 16px 80px;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--surface);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);border:1px solid var(--border);transition:background var(--transition),border-color var(--transition)}
+/* Balance */
+.balance-card{text-align:center}
+.balance-label{font-size:0.75rem;letter-spacing:1.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px}
+.balance-amount{font-size:2.8rem;font-weight:800;color:var(--primary);margin-bottom:16px}
+.limit-row{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.limit-row label{font-size:0.9rem;color:var(--text-muted)}
+.limit-row input{width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt);color:var(--text);font-size:0.9rem}
+.btn-secondary{padding:6px 14px;background:var(--surface-alt);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;font-size:0.85rem;transition:background var(--transition)}
+.btn-secondary:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.limit-warning{margin-top:12px;color:var(--danger);font-weight:600;font-size:0.9rem;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+/* Form */
+.form-card h2{font-size:1.1rem;margin-bottom:16px;color:var(--text)}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;font-weight:500}
+.form-group input,.form-group select{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt);color:var(--text);font-size:0.95rem;transition:border-color var(--transition),box-shadow var(--transition);outline:none}
+.form-group input:focus,.form-group select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,97,238,0.15)}
+.form-error{color:var(--danger);font-size:0.85rem;margin-bottom:10px}
+.btn-primary{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:background var(--transition),transform 0.1s}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-primary:active{transform:scale(0.98)}
+/* Grid */
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:640px){.bottom-grid{grid-template-columns:1fr}}
+/* List */
+.list-card h2,.chart-card h2{font-size:1.1rem;margin-bottom:16px}
+.list-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.list-header h2{margin-bottom:0}
+.sort-controls{display:flex;align-items:center;gap:6px}
+.sort-controls label{font-size:0.8rem;color:var(--text-muted)}
+.sort-controls select{padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-alt);color:var(--text);font-size:0.8rem;cursor:pointer}
+.transaction-list{list-style:none;max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+.transaction-list::-webkit-scrollbar{width:4px}
+.transaction-list::-webkit-scrollbar-track{background:transparent}
+.transaction-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.transaction-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--surface-alt);border-radius:8px;border:1px solid var(--border);gap:10px;transition:background var(--transition)}
+.transaction-item.over-limit{border-color:var(--danger);background:rgba(230,57,70,0.07)}
+.transaction-info{flex:1;min-width:0}
+.transaction-name{font-weight:600;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.transaction-amount{color:var(--primary);font-weight:700;font-size:0.95rem}
+.transaction-category{display:inline-block;font-size:0.72rem;padding:2px 8px;border-radius:20px;background:var(--border);color:var(--text-muted);margin-top:4px;font-weight:500}
+.delete-btn{background:var(--danger);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:0.8rem;cursor:pointer;flex-shrink:0;transition:background var(--transition)}
+.delete-btn:hover{background:var(--danger-hover)}
+.empty-state{color:var(--text-muted);font-size:0.9rem;text-align:center;padding:20px 0}
+/* Chart */
+.chart-wrapper{position:relative;display:flex;align-items:center;justify-content:center;min-height:260px}
+#spendingChart{max-width:100%;max-height:300px}
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal-content{background:var(--surface);border-radius:var(--radius);padding:28px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+.modal-close{position:absolute;top:14px;right:14px;background:none;border:none;font-size:1.1rem;cursor:pointer;color:var(--text-muted);padding:4px 8px;border-radius:6px;transition:background var(--transition)}
+.modal-close:hover{background:var(--border)}
+.modal-content h2{font-size:1.2rem;margin-bottom:20px;color:var(--text)}
+.summary-month{margin-bottom:20px}
+.summary-month h3{font-size:1rem;color:var(--primary);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.summary-row{display:flex;justify-content:space-between;font-size:0.9rem;padding:4px 0;color:var(--text-muted)}
+.summary-row span:last-child{font-weight:600;color:var(--text)}
+.summary-total{display:flex;justify-content:space-between;font-size:0.95rem;font-weight:700;padding-top:8px;margin-top:6px;border-top:1px solid var(--border);color:var(--text)}
+/* FAB */
+.fab{position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 16px rgba(67,97,238,0.4);transition:background var(--transition),transform 0.15s;z-index:150;display:flex;align-items:center;justify-content:center}
+.fab:hover{background:var(--primary-hover);transform:scale(1.08)}
+.hidden{display:none !important}
+  </style>
+</head>
+<body>
+
+  <header class="app-header">
+    <h1>Expense &amp; Budget Visualizer</h1>
+    <button id="themeToggle" class="theme-btn" aria-label="Toggle dark/light mode">🌙 Dark Mode</button>
+  </header>
+
+  <main class="container">
+
+    <!-- Total Balance -->
+    <section class="card balance-card">
+      <p class="balance-label">TOTAL BALANCE</p>
+      <p class="balance-amount" id="totalBalance">$0.00</p>
+      <div class="limit-row">
+        <label for="spendLimit">Spending Limit: $</label>
+        <input type="number" id="spendLimit" min="0" placeholder="Set limit..." />
+        <button id="setLimitBtn" class="btn-secondary">Set</button>
+      </div>
+      <p id="limitWarning" class="limit-warning hidden">⚠️ You have exceeded your spending limit!</p>
+    </section>
+
+    <!-- Add Transaction Form -->
+    <section class="card form-card">
+      <h2>Add Transaction</h2>
+      <div class="form-group">
+        <label for="itemName">Item Name</label>
+        <input type="text" id="itemName" placeholder="e.g. Lunch" />
+      </div>
+      <div class="form-group">
+        <label for="amount">Amount</label>
+        <input type="number" id="amount" min="0.01" step="0.01" placeholder="e.g. 12.50" />
+      </div>
+      <div class="form-group">
+        <label for="category">Category</label>
+        <select id="category">
+          <option value="">-- Select Category --</option>
+          <option value="Food">Food</option>
+          <option value="Transport">Transport</option>
+          <option value="Fun">Fun</option>
+          <option value="custom">+ Add Custom Category</option>
+        </select>
+      </div>
+      <div class="form-group hidden" id="customCategoryGroup">
+        <label for="customCategory">Custom Category Name</label>
+        <input type="text" id="customCategory" placeholder="Enter category name" />
+      </div>
+      <p id="formError" class="form-error hidden">Please fill in all fields.</p>
+      <button id="addBtn" class="btn-primary">Add Transaction</button>
+    </section>
+
+    <!-- Transactions + Chart -->
+    <div class="bottom-grid">
+
+      <section class="card list-card">
+        <div class="list-header">
+          <h2>Transactions</h2>
+          <div class="sort-controls">
+            <label for="sortSelect">Sort:</label>
+            <select id="sortSelect">
+              <option value="date-desc">Newest</option>
+              <option value="date-asc">Oldest</option>
+              <option value="amount-desc">Amount ↓</option>
+              <option value="amount-asc">Amount ↑</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+        </div>
+        <ul id="transactionList" class="transaction-list">
+          <li class="empty-state">No transactions yet. Add one above!</li>
+        </ul>
+      </section>
+
+      <section class="card chart-card">
+        <h2>Spending by Category</h2>
+        <div class="chart-wrapper">
+          <canvas id="spendingChart" class="hidden"></canvas>
+          <p id="chartEmpty" class="empty-state">No data to display.</p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Monthly Summary Modal -->
+  <div id="summaryModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="summaryTitle">
+    <div class="modal-content">
+      <button class="modal-close" id="closeModal" aria-label="Close">✕</button>
+      <h2 id="summaryTitle">Monthly Summary</h2>
+      <div id="summaryContent"></div>
+    </div>
+  </div>
+
+  <button id="summaryBtn" class="fab" title="Monthly Summary">📅</button>
+
+  <script>
+/* ===================================================
+   Expense & Budget Visualizer — Vanilla JS
+   Storage: localStorage | Chart: Chart.js CDN
+   =================================================== */
+
+let transactions    = [];
+let customCategories = [];
+let spendingLimit   = 0;
+let chart           = null;
+
+// DOM refs
+const totalBalanceEl  = document.getElementById('totalBalance');
+const itemNameEl      = document.getElementById('itemName');
+const amountEl        = document.getElementById('amount');
+const categoryEl      = document.getElementById('category');
+const customCatGroup  = document.getElementById('customCategoryGroup');
+const customCatInput  = document.getElementById('customCategory');
+const formErrorEl     = document.getElementById('formError');
+const addBtn          = document.getElementById('addBtn');
+const transactionList = document.getElementById('transactionList');
+const sortSelect      = document.getElementById('sortSelect');
+const spendLimitInput = document.getElementById('spendLimit');
+const setLimitBtn     = document.getElementById('setLimitBtn');
+const limitWarning    = document.getElementById('limitWarning');
+const themeToggle     = document.getElementById('themeToggle');
+const summaryBtn      = document.getElementById('summaryBtn');
+const summaryModal    = document.getElementById('summaryModal');
+const closeModal      = document.getElementById('closeModal');
+const summaryContent  = document.getElementById('summaryContent');
+const chartCanvas     = document.getElementById('spendingChart');
+const chartEmpty      = document.getElementById('chartEmpty');
+
+// ── Persistence ────────────────────────────────────
+function saveData() {
+  localStorage.setItem('ebv_transactions',     JSON.stringify(transactions));
+  localStorage.setItem('ebv_customCategories', JSON.stringify(customCategories));
+  localStorage.setItem('ebv_spendingLimit',    spendingLimit);
+}
+
+function loadData() {
+  const t = localStorage.getItem('ebv_transactions');
+  const c = localStorage.getItem('ebv_customCategories');
+  const l = localStorage.getItem('ebv_spendingLimit');
+  transactions     = t ? JSON.parse(t) : [];
+  customCategories = c ? JSON.parse(c) : [];
+  spendingLimit    = l ? parseFloat(l) : 0;
+}
+
+function loadTheme() {
+  applyTheme(localStorage.getItem('ebv_theme') || 'light');
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  themeToggle.textContent = theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+  localStorage.setItem('ebv_theme', theme);
+  if (chart) renderChart();
+}
+
+// ── Categories ─────────────────────────────────────
+const BASE_CATS = ['Food', 'Transport', 'Fun'];
+
+function populateCategorySelect() {
+  while (categoryEl.options.length > 1) categoryEl.remove(1);
+  [...BASE_CATS, ...customCategories].forEach(cat => {
+    const o = document.createElement('option');
+    o.value = cat; o.textContent = cat;
+    categoryEl.add(o);
+  });
+  const custom = document.createElement('option');
+  custom.value = 'custom'; custom.textContent = '+ Add Custom Category';
+  categoryEl.add(custom);
+}
+
+// ── Helpers ────────────────────────────────────────
+const fmt = v => '$' + parseFloat(v).toFixed(2);
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.appendChild(document.createTextNode(str));
+  return d.innerHTML;
+}
+
+function showError(msg) { formErrorEl.textContent = msg; formErrorEl.classList.remove('hidden'); }
+function hideError()    { formErrorEl.classList.add('hidden'); }
+
+// ── Balance ────────────────────────────────────────
+function calcTotal() {
+  return transactions.reduce((s, t) => s + parseFloat(t.amount), 0);
+}
+
+function updateBalance() {
+  const total = calcTotal();
+  totalBalanceEl.textContent = fmt(total);
+  if (spendingLimit > 0 && total > spendingLimit) {
+    limitWarning.classList.remove('hidden');
+  } else {
+    limitWarning.classList.add('hidden');
+  }
+}
+
+// ── Render List ────────────────────────────────────
+function getSorted() {
+  const s = [...transactions];
+  switch (sortSelect.value) {
+    case 'date-asc':    s.sort((a,b) => a.id - b.id); break;
+    case 'amount-desc': s.sort((a,b) => b.amount - a.amount); break;
+    case 'amount-asc':  s.sort((a,b) => a.amount - b.amount); break;
+    case 'category':    s.sort((a,b) => a.category.localeCompare(b.category)); break;
+    default:            s.sort((a,b) => b.id - a.id);
+  }
+  return s;
+}
+
+function renderTransactions() {
+  const sorted = getSorted();
+  transactionList.innerHTML = '';
+  if (!sorted.length) {
+    transactionList.innerHTML = '<li class="empty-state">No transactions yet. Add one above!</li>';
+    return;
+  }
+  sorted.forEach(t => {
+    const li = document.createElement('li');
+    li.className = 'transaction-item' + (spendingLimit > 0 && parseFloat(t.amount) > spendingLimit ? ' over-limit' : '');
+    li.innerHTML = `
+      <div class="transaction-info">
+        <div class="transaction-name">${escapeHtml(t.name)}</div>
+        <div class="transaction-amount">${fmt(t.amount)}</div>
+        <span class="transaction-category">${escapeHtml(t.category)}</span>
+      </div>
+      <button class="delete-btn" data-id="${t.id}" aria-label="Delete ${escapeHtml(t.name)}">Delete</button>`;
+    transactionList.appendChild(li);
+  });
+}
+
+// ── Chart ──────────────────────────────────────────
+const CAT_COLORS = { Food:'#2a9d8f', Transport:'#4361ee', Fun:'#f4a261' };
+const PALETTE    = ['#e76f51','#8338ec','#06d6a0','#118ab2','#ffd166','#ef476f'];
+
+function renderChart() {
+  const isDark    = document.documentElement.getAttribute('data-theme') === 'dark';
+  const textColor = isDark ? '#e0e0e0' : '#1a1a2e';
+  const totals    = {};
+  transactions.forEach(t => { totals[t.category] = (totals[t.category]||0) + parseFloat(t.amount); });
+  const labels = Object.keys(totals);
+  const data   = Object.values(totals);
+
+  if (!labels.length) {
+    chartEmpty.classList.remove('hidden');
+    chartCanvas.classList.add('hidden');
+    if (chart) { chart.destroy(); chart = null; }
+    return;
+  }
+  chartEmpty.classList.add('hidden');
+  chartCanvas.classList.remove('hidden');
+
+  const colors = labels.map((c,i) => CAT_COLORS[c] || PALETTE[i % PALETTE.length]);
+
+  if (chart) {
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data;
+    chart.data.datasets[0].backgroundColor = colors;
+    chart.data.datasets[0].borderColor = isDark ? '#1a1a2e' : '#ffffff';
+    chart.options.plugins.legend.labels.color = textColor;
+    chart.update();
+  } else {
+    chart = new Chart(chartCanvas, {
+      type: 'pie',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: isDark ? '#1a1a2e' : '#ffffff' }] },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position:'bottom', labels:{ color:textColor, padding:16, font:{size:12} } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.parsed)}` } }
+        }
+      }
+    });
+  }
+}
+
+// ── Add Transaction ────────────────────────────────
+function addTransaction() {
+  const name   = itemNameEl.value.trim();
+  const amount = parseFloat(amountEl.value);
+  let   cat    = categoryEl.value;
+
+  if (cat === 'custom') {
+    const nc = customCatInput.value.trim();
+    if (!nc) { showError('Please enter a custom category name.'); return; }
+    if (!customCategories.includes(nc)) { customCategories.push(nc); populateCategorySelect(); }
+    cat = nc;
+  }
+
+  if (!name || isNaN(amount) || amount <= 0 || !cat) {
+    showError('Please fill in all fields with valid values.');
+    return;
+  }
+  hideError();
+
+  transactions.push({ id: Date.now(), name, amount, category: cat, date: new Date().toISOString() });
+  saveData();
+  refreshUI();
+
+  itemNameEl.value = ''; amountEl.value = ''; categoryEl.value = '';
+  customCatInput.value = ''; customCatGroup.classList.add('hidden');
+}
+
+function deleteTransaction(id) {
+  transactions = transactions.filter(t => t.id !== id);
+  saveData(); refreshUI();
+}
+
+function refreshUI() { updateBalance(); renderTransactions(); renderChart(); }
+
+// ── Spending Limit ─────────────────────────────────
+function setSpendingLimit() {
+  const v = parseFloat(spendLimitInput.value);
+  if (!isNaN(v) && v >= 0) { spendingLimit = v; saveData(); refreshUI(); }
+}
+
+// ── Monthly Summary ────────────────────────────────
+function buildMonthlySummary() {
+  if (!transactions.length) {
+    summaryContent.innerHTML = '<p class="empty-state">No transactions to summarize.</p>';
+    return;
+  }
+  const months = {};
+  transactions.forEach(t => {
+    const d = new Date(t.date);
+    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    (months[k] = months[k]||[]).push(t);
+  });
+  let html = '';
+  Object.keys(months).sort().reverse().forEach(k => {
+    const [yr, mo] = k.split('-');
+    const label = new Date(yr, mo-1).toLocaleString('default',{month:'long',year:'numeric'});
+    const items = months[k];
+    const catT  = {};
+    items.forEach(t => { catT[t.category] = (catT[t.category]||0) + parseFloat(t.amount); });
+    const total = items.reduce((s,t) => s + parseFloat(t.amount), 0);
+    html += `<div class="summary-month"><h3>${label}</h3>
+      ${Object.entries(catT).map(([c,a]) => `<div class="summary-row"><span>${escapeHtml(c)}</span><span>${fmt(a)}</span></div>`).join('')}
+      <div class="summary-total"><span>Total</span><span>${fmt(total)}</span></div></div>`;
+  });
+  summaryContent.innerHTML = html;
+}
+
+// ── Events ─────────────────────────────────────────
+addBtn.addEventListener('click', addTransaction);
+[itemNameEl, amountEl, customCatInput].forEach(el => el.addEventListener('keydown', e => { if (e.key==='Enter') addTransaction(); }));
+categoryEl.addEventListener('change', () => {
+  if (categoryEl.value === 'custom') { customCatGroup.classList.remove('hidden'); customCatInput.focus(); }
+  else customCatGroup.classList.add('hidden');
+});
+sortSelect.addEventListener('change', renderTransactions);
+setLimitBtn.addEventListener('click', setSpendingLimit);
+spendLimitInput.addEventListener('keydown', e => { if (e.key==='Enter') setSpendingLimit(); });
+transactionList.addEventListener('click', e => {
+  if (e.target.classList.contains('delete-btn')) deleteTransaction(parseInt(e.target.dataset.id, 10));
+});
+themeToggle.addEventListener('click', () => {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+summaryBtn.addEventListener('click', () => { buildMonthlySummary(); summaryModal.classList.remove('hidden'); });
+closeModal.addEventListener('click', () => summaryModal.classList.add('hidden'));
+summaryModal.addEventListener('click', e => { if (e.target === summaryModal) summaryModal.classList.add('hidden'); });
+document.addEventListener('keydown', e => { if (e.key==='Escape') summaryModal.classList.add('hidden'); });
+
+// ── Init ───────────────────────────────────────────
+(function init() {
+  loadData();
+  loadTheme();
+  populateCategorySelect();
+  if (spendingLimit > 0) spendLimitInput.value = spendingLimit;
+  refreshUI();
+})();
+  </script>
+</body>
+</html>
